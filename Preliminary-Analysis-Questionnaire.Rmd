@@ -1,0 +1,1449 @@
+---
+title: "Preliminary-Analysis-Questionnaires"
+output: html_document
+---
+
+The overarching analysis in this html is the calculation of the Bunfished/B ratio used to set the vulnerabilities for the *v~B0~* approach. We do this by using the perception of fishers on their current and historical catches per species/taxonomic group inferred from questionnaires. From knowing the catch in 2021 (year of questionnaire) and the catch when they started fishing (depends on their years fishing), we calculate the Chistorical/C2021 and use this as an approximation for Bunfished/B. This ratio is then used in *Ecosim*, which internally translates this into vulnerabilities for each functional group. We then run 2 different effort scenarios with different vulnerability settings including the setting informed by the fishers perception. 
+
+For this, I first look at the data from the questionnaires. We then calculate the median ratio (Chistorical/C2021) for each species and afterwards calculate the weighted median per functional group and the quantiles.  
+   
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(parallel)
+library(stringr)
+
+library(spatstat)
+library(ggpubr)
+
+```
+
+# 1.) Data check
+ 
+Let us first look at the total number of Participants (P), percentage of village, fishing gear, and fishing experience in the data set.
+  
+```{r load data, echo=F}
+
+# This is the information about the demographics and fishing behaviour of each 
+# participant
+pDat <- read.table("Data/csv files/Information_participants_update.csv", sep=";", 
+                   header=T, skip = 1, na.strings=c(""," ","NA"))
+
+# This file contains information on which of the listed species/groups is caught
+# often, occassionally and not at all
+spL <- read.table("Data/csv files/Current target species_update.csv", sep=";", header = T)
+
+# This file is the current and historical total catches of each participant
+totC <- read.table("Data/csv files/Total current and historical catch_update.csv", 
+                   sep=";", header=T)
+
+spC <- read.table("Data/csv files/Current and historical catch per species_update.csv", 
+                  sep=";", header=T)
+
+# Now let us load the original data used to set the sample size 
+
+sampEst <- read.table("Data/csv files/Estimation of sample size.csv", 
+                      sep=";", header=T)
+
+# And we load the group proportion for carnivorous and herbivorous fish
+
+carniProp <- read.table("../Ecosim-Chwaka-Bay/Data/Proportion of EwE functional groups/Other_carnivorous_fish.csv", sep=";", header=T)
+
+herbiProp <- read.table("../Ecosim-Chwaka-Bay/Data/Proportion of EwE functional groups/Other_herbivorous_fish.csv", sep=";", header=T)
+
+
+```
+
+Total number of P:
+
+`r length(pDat$Years_fishing)`
+
+
+We have sampled four fishing villages with the same frequency:
+ 
+```{r village level check, echo=F, results='hide'}
+
+# Let us check the different levels of the fishing villages to make sure there is no spelling problem
+
+table(pDat$Fishing_village)
+
+# Is good
+
+```
+ 
+
+```{r fishing village, echo=F}
+
+ggplot(pDat, aes(x=Fishing_village)) +
+  geom_bar()
+
+```
+
+This is the pecentage of each gear represented in the data set:
+
+```{r gear level check, echo=F, results='hide'}
+
+# Let us check the different levels of the fishing villages to make sure there is no spelling problem
+
+table(pDat$Main_gear)
+
+# Is good
+
+```
+
+
+```{r fishing gear, echo=F}
+
+ggplot(pDat, aes(x=Main_gear)) +
+  geom_bar()+
+  coord_flip()
+
+```
+
+This is not evenly distributed nor does it follow the percentage we wanted given the number of gears targeting the species of interest. Which would have looked like this:
+ 
+```{r ideal geardistribution, echo=F}
+
+gear <- c("Handline", "Net", "Spear", "Trap", "Gillnet", "Longline", "FootFisher", "Fence", "Floatnet")
+num <- c(8, 10, 8, 10, 5, 5, 10, 1, 5)
+idealSamp <- data.frame(gear=gear, number=num)
+
+ggplot(idealSamp) +
+  geom_bar(aes(x=gear, y=number), stat = "identity")+
+  coord_flip()
+
+```
+
+
+I guess the different distribution of gears in the data set stems from random picking of fisher by the interviewer. 
+
+Most important let us look at the fishing experience in years of the fishers. 
+
+```{r experience level check1, echo=F, results='hide'}
+
+# Let us check the different levels of the fishing villages to make sure there is no spelling problem
+
+table(as.numeric(pDat$Years_fishing_Chwaka))
+pDat$Years_fishing_Chwaka
+
+
+# I got some NAs, which is problematic. In order to not mess with the original data sheet we will create an updated column which contains the fishing experience in Chwaka and we will replace the NA's with the total fishing experience. 
+
+pDat$Years_fishing_Chwaka_corr <- pDat$Years_fishing_Chwaka
+
+indNa <- which(is.na(pDat$Years_fishing_Chwaka_corr))
+
+pDat$Years_fishing_Chwaka_corr[indNa] <- pDat$Years_fishing[indNa]
+
+```
+
+```{r fisher experience, echo=F}
+
+ggplot(pDat, aes(x=Years_fishing_Chwaka_corr)) + 
+  geom_histogram(binwidth = 5)
+
+
+```
+
+Many P have less than 20 years experience. Originally, I said, we want to have Ps that have an experience of 15 or more years. Because the model year is 2014, I decided to take out all Ps with less than 20 years of fishing. Note that asking the fisher about their catch 10, 20, 30, etc. years ago did not work according to the interviewers. Instead they asked the Ps about the current year 2021 (Sasa), the year when they started (Aliopanza) and the time in between (Kati kati). In the following I only use the starting year and the current year. 
+
+# 2.) Steps to prepare the data
+ 
+The following will depict how I treat the data and finally calculate a Cstarting/C2021 ratio for each species and each participant:
+ 
+## STEP 1: Extract expert fishers
+
+As said, we only look at those fisher with an experience of or more than 15 years.
+  
+```{r fisher experts, echo=F}
+
+pDatExp <- subset(pDat, pDat$Years_fishing_Chwaka_corr>=15)
+idExp <- pDatExp$Id
+
+spCExp <- subset(spC, spC$Id %in% idExp)
+
+totCExp <- subset(totC, totC$Id %in% idExp)
+
+```
+
+This reduces the number of 80 Ps to `r length(unique(pDatExp$Id))`. 
+
+```{r experts plot, echo=F}
+
+ggplot(pDatExp, aes(x=Years_fishing)) + 
+  geom_histogram(binwidth = 5)
+
+```
+
+
+## STEP 2: Checking whether the fisher always fish in Chwaka
+   
+```{r always Chwaka}
+
+table(totCExp$Chwaka)
+
+```
+
+All fisher always fish in Chwaka, so no need for treatment
+
+## STEP 3: Check if the fishing hours change over time
+ 
+We check which of the fisher increased or decreased their fishing effort:
+
+We first check how frequent the different fishing hours are:
+
+```{r experience level check, echo=F, results='hide'}
+
+# Let us check the different levels of the fishing villages to make sure there is no spelling problem
+
+# table(totCExp$Time)
+# totCExp$Time
+
+table(totCExp$Duration_fishing_trip)
+# totCExp$Duration_fishing_trip
+
+```
+
+
+And we check which fisher changed their fishing effort between now (Sasa) and when he started (Aliopanza)
+ 
+```{r fishing hours, echo=F}
+
+# Which fisher changed fishing effort over time?
+totCExpTimeL <- split(totCExp, totCExp$Time) # splitting the df by time for better
+                                             # handling
+
+# changes between Sasa (2021) and Aliopanza (When fisher started fishing)
+notEqual <- totCExpTimeL$Aliopanza[which(totCExpTimeL$Aliopanza$Duration_fishing_trip!=totCExpTimeL$Sasa$Duration_fishing_trip),]
+notEqualId <- notEqual$Id # id's
+
+# Now we calculate a ratio for each of these fishers 
+totCExpNotequal <- subset(totCExp, totCExp$Id %in% notEqualId & 
+                            totCExp$Time!="Kati_kati")
+totCExpNotequal[,c(1:4,7)]
+
+# let us track these interviews when plotting the ratios. 
+
+```
+
+Only `r length(unique(totCExpNotequal$Id))` of the `r length(unique(pDatExp$Id))` fisher changed the number of hours spent fishing. Note that we don't look at the days spent fishing as we ask the fisher for their catch per fishing day. 
+
+I now simply calculate the ratio between the hours spent 2021 (Sasa) and when the fisher started (Aliopanza) and add it to the data frame so that we can adjust the catch per species from 2021 by this ratio:  
+
+```{r fishhours treatment, echo=F}
+
+totCExpNotequalL <- split(totCExpNotequal, totCExpNotequal$Time)
+
+# Here, we use the ratio between fishing effort in 2021 (Sasa) and
+# when the fisher started (aliopanza)
+
+cAdjust <- as.numeric(totCExpNotequalL$Sasa$Duration_fishing_trip)/
+  as.numeric(totCExpNotequalL$Aliopanza$Duration_fishing_trip)
+
+# We add the id's again to match with the df in question later on
+
+dfAdjust <- data.frame(Id=notEqualId, Effort_change=cAdjust) 
+
+# Now we add another column for effort change in our df of interest
+
+spCExp$Effort_change <- 1
+# now we adjust the ones with the change in effort:
+
+spCExp$Effort_change <- dfAdjust$Effort_change[match(spCExp$Id,dfAdjust$Id)]
+
+spCExp$Effort_change[is.na(spCExp$Effort_change)] <- 1
+
+spCExp$Effort_change[spCExp$Time=="Aliopanza"] <- 1
+spCExp$Effort_change[spCExp$Time=="Kati_kati"] <- 1
+
+unique(spCExp$Effort_change)[2:7]
+
+```
+
+
+## STEP 4: Check if the gear has changed between 2021 and the starting year.
+ 
+  
+```{r change gears, echo=F, results='hide'}
+
+# let us check the different gear levels
+
+# table(spCExp$Gear)
+
+spCExpL <- split(spCExp, spCExp$Time)
+# 
+indg <- which(spCExpL$Aliopanza$Gear!=spCExpL$Sasa$Gear)
+# 
+idds <- spCExpL$Aliopanza[indg,]$Id
+subset(spCExp, spCExp$Id %in% idds)
+
+```
+
+No fisher reports to have changed the gears. 
+
+## STEP 5: Check if the fisher has always fished in Chwaka throughout his life.
+ 
+We check if the fisher fished outside of Chwaka during a period of his life.
+ 
+```{r fishing in Chwaka, echo=F}
+
+ind3 <- which(pDatExp$Years_fishing!=pDatExp$Years_fishing_Chwaka)
+
+pDatExp[c(ind3),c(1,3,12,19)]
+
+indTrack <- c("NS0221P18","NS0213U2", "HK0213U2", "HK0213U3", "HK0213U4")
+
+```
+
+`r length(ind3)` of the interviewed fisher changed fishing grounds. For **NS0213U2** this does not matter as the difference is one year, but for the other it is problematic, because *Aliopanza* could refer to the period where the fisher did not fish in Chwaka. We will keep these interviews in the analysis but we will color them in the analysis to see if they are very different from the other interviews.
+
+## STEP 6: Remove the year in-between (Kati_kati)
+
+I decided to only look at the starting and current year, because this is what we need to calculate: the ratio between B/Bunfished. 
+    
+```{r remov kati_kati, echo=F, results='hide', warning=F}
+
+# let us create a numberic column for catch 
+spCExp$CatchNum <- as.numeric(spCExp$Catch)
+
+test <- spCExp
+
+# let us get Hamadis entries
+# indCatchNA <- unique(subset(spCExp, is.na(spCExp$CatchNum) & spCExp$Time=="Aliopanza")$Id)
+# indCatchNA2 <- indCatchNA[-1]# remove Nurus entry
+# 
+# test$CatchNum[test$Time=="Aliopanza" & test$Id %in% indCatchNA2] <- test$CatchNum[test$Time=="Kati_kati" & test$Id %in% indCatchNA2]
+# 
+# # let us check if everything went well
+# subHamadi <- subset(test, test$Id %in% indCatchNA2) 
+# subHamadi[subHamadi$Time=="Aliopanza", "CatchNum"]==subHamadi$CatchNum[subHamadi$Time=="Kati_kati"]
+# 
+# subnoHamadi <- subset(test, !(test$Id %in% indCatchNA2)) 
+# subnoHamadi[subnoHamadi$Time=="Aliopanza", "CatchNum"]==subnoHamadi$CatchNum[subnoHamadi$Time=="Kati_kati"]
+
+# looks fine
+
+spCExp2 <- subset(test, test$Time!="Kati_kati")
+
+```
+
+
+## STEP 7: Correct the catch for effort change
+   
+Let us first check if we have NAs in the catch for some interviews:
+  
+```{r check Catch & unit level, echo=F}
+
+# table(spCExp2$CatchNum)
+# spCExp2$CatchNum
+# has a lot of NAs :-(
+# colSums(is.na(spCExp2))
+# let us subset for the NAs and see who is this
+subset(spCExp2, is.na(spCExp2$CatchNum))
+indCatchNA <- unique(subset(spCExp2, is.na(spCExp2$CatchNum))$Id)
+# ok
+
+# seems as if there are a lot of empty entries? 
+
+# table(spCExp2$Unit)
+# spCExp2$Unit
+
+```
+
+There are two interviews one from the interviewer Nuru and one from the interviewer Hamadi. Both said the fisher was not able to tell. The other interviews are good. 
+
+As mentioned above I correct the catch per species by the change in fishing effort.
+
+```{r correct catch, echo=F}
+
+spCExp2$Catch_corrected <- (spCExp2$CatchNum/spCExp2$Effort_change)
+
+```
+
+## STEP 8: Check the change in units
+ 
+```{r check change in units, echo=F}
+
+indUnit <- which(spCExp2[spCExp2$Time=="Aliopanza", "Unit"]!=spCExp2[spCExp2$Time=="Sasa", "Unit"])
+
+indId <- spCExp2[spCExp2$Time=="Aliopanza","Id"][indUnit]
+
+indSpecies <- spCExp2[spCExp2$Time=="Aliopanza","Species"][indUnit]
+
+indSpecies
+
+```
+
+Originally, the interviews **NS0221P16** about Octopus and **NS0221P20** about Squids noted down a change in units from reporting rope in the year *Aliopanza* and *Kati kati* and then switching to numbers in the current year. This was due to the fact that the numbers caught nowadays is so low that it is not a full rope anymore. However,  the rope is not a stable unit but the numbers of fish put on the rope depends on the length of the rope. To not discard these two interviews, I decided to change the numbers to rope by simply assuming that it is 0.5 a rope. Could be 3/4 or 1/4 but again since the rope varies anyway it is a very rough way of estimating changes in the catches. 
+ 
+```{r remove it, echo=F}
+
+# spCExp2Remov <- subset(spCExp2, !(spCExp2$Id %in% indId 
+#        & spCExp2$Species %in%  indSpecies))
+
+
+```
+
+ 
+# 3.) Steps to calculate the median ratio CPUEunfished/CPUE
+## STEP 1: Calculate the ratio between historical and current catch
+  
+I calculate the difference between the catch from 2021 and the catch from the starting year for each species and for each participant. I do this before calculating the median as the unit for the catch varies from P to P. I have tried my best to communicate that I need one unit (either kg, number or batches) but only one interviewer has consistently used numbers.  
+  
+```{r calculate ratio, echo=F}
+
+spCExp2L <- split(spCExp2, spCExp2$Time)
+
+spCExpFin <- spCExp2L$Sasa
+
+spCExpFin$Ratio <- spCExp2L$Aliopanza$Catch_corrected/spCExp2L$Sasa$Catch_corrected
+
+# we add back the aliopanza catch and the fishing years
+
+spCExpFin$Catch_aliopanza <- spCExp2L$Aliopanza$Catch_corrected
+spCExpFin$Years_fishing <- 2021-spCExp2L$Aliopanza$Time_year
+
+spCExpFin2 <- spCExpFin[,c(1:10, 12, 13, 11)]
+
+```
+
+
+Let us check which of the fisher reports to catch more now than when he started:
+
+```{r increased catch, echo=F}
+
+spCExpFin2[which(spCExpFin2$Ratio<1),]
+# Let us check for which participant the catch was higher in Aliopanza:
+
+ind5 <- which(spCExpFin2$Ratio<1 & spCExpFin2$Id!="NJ0214C10")
+
+# Let us remove the entry from Jiddawi as here the fisher clearly reports a decline:
+
+# spCExpFin2[ind5,]
+
+
+```
+
+There are `r length(unique(spCExpFin2[which(spCExpFin2$Ratio<1),]$Id))` fisher reporting that catches have increased. Because we do not care for tuna, we will not care about the interview NJ0214C10. Nurus second and third interview in Uroa, however, is important. Both interviewed fisher actually report a decrease in the catch but because they also say that they fished longer hours when they started, the final corrected catch per unit of effort is larger in "Sasa" than it was in "Aliopanza". Given this and even more because Nuru did a lot of mistakes and was not reporting rigorously the data, I will simply remove these two interviews from the analysis. 
+  
+```{r remove fished more, echo=F}
+
+removInt <- unique(spCExpFin2[ind5,]$Id)
+
+spCExpFin2 <- spCExpFin2[!(spCExpFin2$Id %in% removInt),]
+
+
+```
+
+So we have left `r length(unique(spCExpFin2$Id))` number of interviews.
+
+## STEP 2: Cross-check if the species is fished often
+We don't do this anymore because I have realized that the data provided by the interviewers is not consistent and I have not gotten any feedback/corrections from them. 
+
+```{r notfoten, echo=F}
+
+# idint <- unique(spCExpFin2$Id)
+# 
+# splsub <- subset(spL, spL$Id %in% idint)
+# 
+# notatall <- subset(splsub, splsub$Not_at_all==1)
+# 
+# test <- spCExpFin2
+# 
+# newtest <- left_join(test, splsub, by=c("Id", "Species"))
+# 
+# newtestsub <- subset(newtest, newtest$Not_at_all==1)
+# 
+# table(newtestsub$Species)
+# 
+# subset(newtestsub, Species %in% c("Scarus_ghobban"))
+# 
+# wihtoutnotatall <- subset(newtest, newtest$Not_at_all!=1)
+# 
+# wihtoutnotatallFin <- wihtoutnotatall %>% 
+#   group_by(SpeciesCorr) %>% 
+#   mutate(Ratio_median=median(Ratio, na.rm = T)) %>% 
+#   mutate(Q25Ratio=as.numeric(quantile(Ratio, na.rm=T, type = 1)[[2]])) %>% 
+#   mutate(Q75Ratio=as.numeric(quantile(Ratio, na.rm=T, type = 1)[[4]]))
+# 
+# 
+# unique(wihtoutnotatallFin[c(4,21,22,23)])
+
+```
+
+
+```{r correct crabs_lobsters, results='hide', echo=F}
+
+# Let us put crabs and lobsters into one group
+# I am not sure if this really works well because one fisher OH0220M15 has reported on both crabs and lobsters. 
+
+# we create a new column with the corrected names
+spCExpFin2$SpeciesCorr <- spCExpFin2$Species
+
+spCExpFin2$SpeciesCorr[spCExpFin2$SpeciesCorr=="Lobsters"] <- "Crabs_Lobsters"
+spCExpFin2$SpeciesCorr[spCExpFin2$SpeciesCorr=="Crabs"] <- "Crabs_Lobsters"
+
+```
+
+
+## STEP 3: Calculate the median for the ratio of each species
+ 
+Now that we have the change in catch for each species and P as a ratio, we calculate the median, 25 % and 75% quantile for each species. 
+ 
+```{r ratio median, echo=F, warning=F}
+
+spCExpFin3 <- spCExpFin2 %>% 
+  group_by(SpeciesCorr) %>% 
+  mutate(Ratio_median=median(Ratio, na.rm = T)) %>% 
+  mutate(Q25Ratio=as.numeric(quantile(Ratio, na.rm=T, type = 1)[[2]])) %>% 
+  mutate(Q75Ratio=as.numeric(quantile(Ratio, na.rm=T, type = 1)[[4]]))
+
+spCExpFinAll <- spCExpFin3
+
+
+
+```
+
+It remains the same amount of interviews: `r length(unique(spCExpFin3$Id))`, but some of the species the fisher reports on, have been removed. 
+ 
+```{r save df, echo=F}
+# Let us save the data frame for the supplementary analysis
+
+write.table(spCExpFinAll, "Results/Used in paper/Median change per species or group_all fisher_wt15yrs.csv", sep=";", row.names = F)
+
+
+```
+
+  
+## Check the results
+ 
+The first thing we want to do is, to check if the ratio is a function of fishing experience:
+ 
+```{r corr plot, echo=F, warning=F}
+
+spCExpFin3sub <- spCExpFin3[c(1,5,10,12,13,14)]
+
+ggplot(spCExpFin3sub, aes(x=Years_fishing, y=Ratio)) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()
+
+
+```
+
+Not that much of a correlation. Let us check if we see some pattern if we group the data by gear:
+ 
+```{r gear effect, echo=F, warning=F}
+
+# let us only look at dragnet, handline, trap, and spear fisher
+
+gearInt <- c("Dragnet", "Handline", "Trap", "Spear")
+
+spCExpFin3subsub <- subset(spCExpFin3sub, Gear %in% gearInt)
+
+ggplot(spCExpFin3subsub, aes(x=Years_fishing, y=Ratio)) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()+
+  facet_wrap(~Gear)
+
+```
+ 
+Traps seem to have no real pattern. Could it be that we just have many more interviews for traps?
+Dragnet: `r table(spCExpFin3subsub$Gear)[1]`
+Handline: `r table(spCExpFin3subsub$Gear)[2]`
+Spear: `r table(spCExpFin3subsub$Gear)[3]`
+Trap: `r table(spCExpFin3subsub$Gear)[4]`
+
+Well, it is indeed the gear with the most interviews but it is sampled only  
+`r table(spCExpFin3subsub$Gear)[4]/table(spCExpFin3subsub$Gear)[2]` times more often than handline.
+
+Let us see if there is a relationship between ratio and fishing experience for village
+
+```{r village effect, echo=F, warning=F, message=F}
+
+pDatExpSub <- pDatExp[c(1,6)]
+
+spCExpFin3subsubVill <- left_join(spCExpFin3subsub, pDatExpSub, by=c("Id"))
+
+ggplot(spCExpFin3subsubVill, aes(x=Years_fishing, y=Ratio)) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()+
+  facet_wrap(~Fishing_village)
+
+```
+
+It is interesting to see that Chwaka has a strong relationship between the ratio and the fishing experience but the others not that much. 
+
+Can we check if there are more pessimistic fisher overall or if we even have an interviewer effect? 
+
+
+```{r id effect, echo=F, warning=F}
+
+omi <- unique(spCExpFin3subsub[grep(spCExpFin3subsub$Id, pattern = "OH", ignore.case = T),"Id"])
+nuri <- unique(spCExpFin3subsub[grep(spCExpFin3subsub$Id, pattern = "NS", ignore.case = T),"Id"])
+hamadi <- unique(spCExpFin3subsub[grep(spCExpFin3subsub$Id, pattern = "HK", ignore.case = T),"Id"])
+nari <- unique(spCExpFin3subsub[grep(spCExpFin3subsub$Id, pattern = "NJ", ignore.case = T),"Id"])
+
+spCExpFin3subsub$interv <- "nadie"
+spCExpFin3subsub$interv[which(spCExpFin3subsub$Id %in% omi[[1]])] <- "OH"
+spCExpFin3subsub$interv[which(spCExpFin3subsub$Id %in% nuri[[1]])] <- "NS"
+spCExpFin3subsub$interv[which(spCExpFin3subsub$Id %in% hamadi[[1]])] <- "HK"
+spCExpFin3subsub$interv[which(spCExpFin3subsub$Id %in% nari[[1]])] <- "NJ"
+
+ggplot(spCExpFin3subsub, aes(x=Id, y=Ratio, fill=interv)) + 
+  geom_boxplot()+
+  coord_flip()
+
+
+```
+
+It seems that the fisher interviewed by the younger researchers Omar (OH) and Nuru (NS) were more pessimistic but also showed more variation in their answers (which however could also be due to asking for more species than the senior scientists).  
+
+
+```{r interviewer effect, echo=F, warning=F}
+
+ggplot(spCExpFin3subsub, aes(x=Years_fishing, y=Ratio)) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()+
+  facet_wrap(~interv)
+
+```
+
+There seems to be some bias but it appears to be not that prominent. 
+
+
+Finally, let us  look at *Siganus sutor*. For this species, we have the most interviews and might understand some trends:
+
+```{r tasi, echo=F}
+
+tasi <- subset(spCExpFin3subsubVill, SpeciesCorr=="Siganus_sutor")
+
+ggplot(tasi, aes(x=Years_fishing, y=Ratio)) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()
+
+```
+
+No trend. What if we look at it per gear?
+
+
+```{r gear tasi, echo=F}
+
+ggplot(tasi, aes(x=Years_fishing, y=Ratio)) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()+
+  facet_wrap(~Gear)
+
+```
+
+Again handline fisher seem to experience a decrease with fishing experience and trap fisher not that much. 
+
+Any differences between villages?
+
+```{r village tasi, echo=F}
+
+ggplot(tasi, aes(x=Years_fishing, y=Ratio)) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()+
+  facet_wrap(~Fishing_village)
+
+```
+
+Again fot Chwaka it seems that there is a strong relationship between experience of the fisher and the ratio but not for the other villages. Or this might be due to only few data points with large variation. 
+
+
+## Visualize the preliminary analysis
+
+In the following I will plot the C ratios/Chistorical catch and the median for each species and P over the Ps fishing experience (years).
+
+We will always highlight the entry that might be problematic because the fisher did not always fish in Chwaka and the entries where fisher reported changes in their effort over time. 
+ 
+```{r tracking, echo=F, results='hide'}
+
+# Let us keep track of the problematic answers:
+# fisher did not always fish in Chwaka Bay
+indTrack
+
+# Changes in fishing effort over time
+notEqualId
+
+track <- c(indTrack, notEqualId)
+
+```
+
+Let us also check the spelling of the species to make sure no problems are occuring there:
+ 
+```{r species spelling, echo=F}
+
+table(spCExpFin3$SpeciesCorr)
+
+```
+
+It is ok. 
+
+```{r calc inverse ratio, echo=F, results='hide'}
+
+spCExpFin3$RatioInv <- 1/spCExpFin3$Ratio 
+
+```
+
+
+### Key species
+ 
+These species are modelled as monospecies groups in Ecopath
+ 
+```{r keyspec, echo=F, warning=F}
+
+keySpNam <- c("Siganus_sutor", "Leptoscarus_vaigiensis", "Lethrinus_lentjan", 
+              "Lethrinus_borbonicus", "Lutjanus_fulviflamma", "Scarus_ghobban")
+keySp <- subset(spCExpFin3, spCExpFin3$Species %in% keySpNam)
+
+keySpTrack <- subset(keySp, keySp$Id %in% track)
+# medSp <- unique(keySp$Ratio_median) 
+
+keySp <- as.data.frame(keySp)
+
+
+ggplot(keySp, aes(x=Years_fishing, y=Ratio))+
+  geom_point()+
+  geom_line(data= keySp, aes(y=Ratio_median, 
+                             x=seq(0, 60, length.out=length(Ratio_median))))+
+  geom_text(aes(label=Years_fishing))+
+  facet_wrap(~Species)+
+  geom_point(data=keySpTrack, aes(x=Years_fishing, y=Ratio, col="red"), size=2)
+
+keySpAll <- keySp
+
+```
+
+We have enough data points for every species `r table(keySp$SpeciesCorr)`
+The number of data points varies between 6 and 32. 
+
+There are a few values that have a relatively high ratio. Let us look at the inverse of the ratios to better visualize the changes:
+
+```{r plot ratioInv, echo=F}
+
+ggplot(keySp, aes(x=Years_fishing, y=RatioInv))+
+  geom_point()+
+  geom_text(aes(label=Years_fishing))+
+  facet_wrap(~Species)+
+  geom_point(data=keySpTrack, aes(x=Years_fishing, y=RatioInv, col="red"), size=2)
+
+```
+
+
+Looking at the data points which show very little changes, we see that none of them come from the entries that we wanted to track (red). 
+
+Let's check if is always the same fisher/interviewer that reports no changes?
+
+```{r keyspec2, echo=F, warning=F}
+
+keySpNam <- c("Siganus_sutor", "Leptoscarus_vaigiensis", "Lethrinus_lentjan", 
+              "Lethrinus_borbonicus", "Lutjanus_fulviflamma", "Scarus_ghobban")
+keySp <- subset(spCExpFin3, spCExpFin3$Species %in% keySpNam)
+
+# medSp <- unique(keySp$Ratio_median) 
+
+keySp <- as.data.frame(keySp)
+# names(keySp)
+ggplot(keySp, aes(x=Years_fishing, y=RatioInv))+
+  geom_point()+
+  geom_text(aes(label=Id))+
+  facet_wrap(~Species)
+
+```
+
+Well it seems that Omar's interview with Mohd Gilasi Mahmood did not report any changes. Let us have a look at the information from this fisher:
+ 
+```{r OH0220M14 pDat, echo=F}
+
+subset(pDat, Id=="OH0220M14")
+
+```
+
+Nothing looks really suspicious.
+
+Does he fish the key species often?
+
+```{r OH0220M14 spL, echo=F}
+
+subset(spL, Id=="OH0220M14")
+
+```
+
+Yes. 
+
+So this entry is OK. 
+
+
+The species that look OK are: *Leptoscarus vaigiensis*, *Lutjanus fulviflamma*, and maybe *Scarus ghobban*. Siganus sutor also looks quiet OK.
+
+
+### Invertebrates
+   
+I have 4 fished invertebrate groups: Crabs&Lobsters, Squids, Octopus, and Snails
+  
+```{r inverts, echo=F, warning=F, message=F}
+# Let us add the fishing years to the data set and plot the ratios over fishing
+# years
+
+# One fisher explicitly reports on Crabs and one fisher on lobsters, we need to put them in one group, first let us subset them
+
+invNam <- c("Crabs_Lobsters", "Octopus", "Snails", "Squids")
+inv <- subset(spCExpFin3, spCExpFin3$SpeciesCorr %in% invNam)
+
+
+# medSp <- unique(keySp$Ratio_median) 
+
+inv <- as.data.frame(inv)
+
+ggplot(inv, aes(x=Years_fishing, y=Ratio))+
+  geom_point()+
+  geom_line(data= inv, aes(y=Ratio_median, 
+                             x=seq(0, 60, length.out=length(Ratio_median))))+
+   geom_text(aes(label=Years_fishing), nudge_y = 0.1)+
+   geom_text(aes(label=Gear))+
+  facet_wrap(~SpeciesCorr)
+
+table(inv$SpeciesCorr)
+
+invAll <- inv
+
+```
+
+Octopus and Squids have enough data points. Octopus has more or less a pattern squid doesn't. 
+
+ 
+### Carnivore fish
+
+The species displayed below are the major contributors to the carnviorous fish functional group in Ecopath.
+ 
+```{r carnivore, echo=F, warning=F}
+
+# Let us add the fishing years to the data set and plot the ratios over fishing
+# years
+carniNam <- c("Lethrinus_harak","Lethrinus_variegatus", "Lethrinus_mahsena",
+              "Serranidae", 
+              # "Plectorhinchus_gibbosus", "Rhinobatidae", 
+              "Mullidae", "Anguilliformes", "Cheilinus_trilobatus")
+carni <- subset(spCExpFin3, spCExpFin3$Species %in% carniNam)
+
+# medSp <- unique(keySp$Ratio_median) 
+
+carni <- as.data.frame(carni)
+
+ggplot(carni)+
+  geom_point(aes(x=Years_fishing, y=Ratio))+
+  geom_line(aes(y=Ratio_median, 
+                x=seq(0, 60, length.out=length(Ratio_median))))+
+  facet_wrap(~Species)
+#
+table(carni$SpeciesCorr)
+
+carniAll <- carni
+
+```
+
+The groups with enough sample size contribute over 60 % to carnivorous fish. So I could set a v using this information.
+Serranidae is the only one that seems to be very consistent...
+ 
+ 
+### Herbivore fish   
+   
+```{r herbivore, echo=F, warning=F}
+herbNam <- c("Acanthurus_spp", "Hipposcarus_harid", "Calotomus_carolinus")
+herb <- subset(spCExpFin3, spCExpFin3$Species %in% herbNam)
+# unique(spCExpFin3$SpeciesCorr)
+# medSp <- unique(keySp$Ratio_median)
+
+herb <- as.data.frame(herb)
+
+ggplot(herb, aes(x=Years_fishing, y=Ratio))+
+  geom_point()+
+  geom_line(aes(y=Ratio_median, 
+                x=seq(0, 60, length.out=length(Ratio_median))))+
+   geom_text(aes(label=Years_fishing), nudge_y = 0.1)+
+   # geom_text(aes(label=Gear))+
+  facet_wrap(~Species)
+
+herbiAll <- herb
+
+
+```
+ 
+ Small sample size but I could use it. Except for one P the range is much narrower. 
+ 
+### Omnivore fish
+  
+ 
+```{r omnivores, echo=F, warning=F}
+omnNam <- c("Mugilidae", "Monodactylus_argenteus", "Balistidae", "Terapon_jarbua", "Kyphosus_spp.", "Monacanthidae", "Chaetodontidae", "Lutjanus_kasmira", "Scarus russelli")
+omni <- subset(spCExpFin3, spCExpFin3$Species %in% omnNam)
+
+# medSp <- unique(keySp$Ratio_median) 
+
+omni <- as.data.frame(omni)
+
+ggplot(omni, aes(x=Years_fishing, y=Ratio))+
+  geom_point()+
+  geom_line(aes(y=Ratio_median, 
+                x=seq(0, 60, length.out=length(Ratio_median))))+
+   geom_text(aes(label=Years_fishing), nudge_y = 0.1)+
+   geom_text(aes(label=Gear))+
+  facet_wrap(~Species)
+
+```
+ 
+Balistidae is the only group for which I have enough data but it only contributes with 20 % to the omnivore group. So I will not set the vulnerabilities of this *EwE* group. 
+
+### Zooplanktivore fish 
+
+Not enough data!
+
+### Pelagic fish
+
+There are just not enough data points for any of the groups. 
+
+# 4.) Steps to calculate the median when only using expert fisher (10 most experienced fisher)
+
+As we see we have a lot of variability in the number of species. We also have a lot of variability in the CPUE ratio. We will now only use the 10 fisher with the most experience.
+
+## STEP 1: Use only the 10 most experienced fisher
+  
+We will now choose a maximum of 10 fisher with the longest fishing experience (If the tenth value is 30 years but there are multiple fisher with that level of experience the code automatically selects all fisher with 30 years experience. This sometimes leads to having a few more samples than 10). 
+
+```{r take out, echo=F, results='hide'}
+
+# We first take out the fisher that did not start fishing in Chwaka:
+
+indTrack
+
+# spCExpFinExpSub <- spCExpFinOften[!(spCExpFinOften$Id %in% indTrack),]
+
+```
+
+
+```{r select experienced fisher, echo=F}
+
+spCExpFinOftenExp <- spCExpFin3 %>% 
+  group_by(SpeciesCorr) %>% 
+  slice_max(order_by = Years_fishing, n = 10)
+
+
+```
+
+## STEP 2: Calculate the median for the ratio of each species
+
+Same as before.
+
+```{r ratio median2, echo=F}
+
+spCExpFinExp <- spCExpFinOftenExp %>% 
+  group_by(SpeciesCorr) %>% 
+  mutate(Ratio_median=median(Ratio, na.rm = T))
+
+```
+
+
+## Visualize the preliminary analysis
+ 
+In the following I will plot the C/Chistorical ratios and the median for each species and P over the Ps fishing experience (years).
+
+We will always highlight the entry that might be problematic because the fisher did not always fish in Chwaka and the entries where fisher reported changes in their effort over time. 
+
+
+### Key species
+ 
+These species are modelled as monospecies groups in Ecopath
+
+```{r keyspec3, echo=F, warning=F}
+
+keySpNam <- c("Siganus_sutor", "Leptoscarus_vaigiensis", "Lethrinus_lentjan", 
+              "Lethrinus_borbonicus", "Lutjanus_fulviflamma", "Scarus_ghobban")
+keySp <- subset(spCExpFinExp, spCExpFinExp$Species %in% keySpNam)
+
+keySpTrack <- subset(keySp, keySp$Id %in% track)
+# medSp <- unique(keySp$Ratio_median) 
+
+ggplot(keySp, aes(x=Years_fishing, y=Ratio))+
+  geom_point()+
+  facet_wrap(~Species)+
+  geom_line(data= keySp, aes(y=Ratio_median, 
+                             x=seq(15, 60, length.out=length(Ratio_median))))+
+  geom_text(aes(label=Years_fishing))+
+  geom_point(data=keySpTrack, aes(x=Years_fishing, y=Ratio, col="red"), size=2)
+
+```
+
+The heterogeneity seems to decrease for *Siganus sutor*. For the emperor species the variability does not decrease much. And for the other species we don't have a high n. 
+
+
+Let us subset for emperor species and then look at the gear effects:
+ 
+```{r emperors, echo=F, warning=F, message=F}
+
+emp <- unique(spCExpFin3subsub[grep(spCExpFin3subsub$SpeciesCorr, pattern = "lethr", ignore.case = T),"SpeciesCorr"])
+emp <- c("Lethrinus_harak", "Lethrinus_lentjan", "Lethrinus_mahsena", "Lethrinus_borbonicus", "Lethrinus_variegatus", "Lethrinidae")
+spCExpFin3subsubEm <- subset(spCExpFin3subsub, SpeciesCorr %in% emp)
+
+ggplot(spCExpFin3subsubEm, aes(x=Years_fishing, y=Ratio, color=factor(Gear))) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()
+
+
+```
+
+No trend. When all emperor species are group together we also don't see a clear gear effect. Let us see if we see something per species
+
+
+```{r emperor species, echo=F, warning=F, message=F}
+
+ggplot(spCExpFin3subsubEm, aes(x=Years_fishing, y=Ratio, color=factor(Gear))) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()+
+  facet_wrap(~SpeciesCorr)
+
+
+```
+
+No real pattern in terms of gears. There are also too few data points. The fisher seemed to be relatively clear on Lethrinus harak, which is one of the bigger emperors. Now let us directly look at emperors in general per gear:
+ 
+```{r emperors gear, echo=F, warning=F, message=F}
+
+ggplot(spCExpFin3subsubEm, aes(x=Years_fishing, y=Ratio)) + 
+  geom_smooth(method = "lm", se=FALSE, color="black", formula = y ~ x) +
+  geom_point()+
+  stat_cor()+
+  facet_wrap(~Gear)
+
+
+```
+
+Handline seem to show a clear downward trend but not trap fisher. But also the fisher with the least experience (15-20) years are the most variable in terms of handline.
+
+
+### Invertebrates
+  
+Let us look at the octopus, squid and Crabs_Lobster groups:
+
+```{r inverts2, echo=F, warning=F, message=F}
+# Let us add the fishing years to the data set and plot the ratios over fishing
+# years
+
+# One fisher explicitly reports on Crabs and one fisher on lobsters, we need to put them in one group, first let us subset them
+
+invNam <- c("Crabs_Lobsters", "Octopus", "Squids")
+inv <- subset(spCExpFinExp, spCExpFinExp$SpeciesCorr %in% invNam)
+
+
+# medSp <- unique(keySp$Ratio_median) 
+
+inv <- as.data.frame(inv)
+
+ggplot(inv, aes(x=Years_fishing, y=Ratio))+
+  geom_point()+
+  geom_line(data= inv, aes(y=Ratio_median, 
+                             x=seq(0, 60, length.out=length(Ratio_median))))+
+  facet_wrap(~SpeciesCorr)
+
+table(inv$SpeciesCorr)
+
+```
+
+For Crabs_Lobster nothing has changed, because we only have 6 data points. For Octopus the variability decreases a bit. Squids show the same variability as before. 
+
+Let us check if there is a difference in the gear for squids
+ 
+```{r gszg, echo=F, warning=F, message=F}
+
+ggplot(inv, aes(x=Years_fishing, y=Ratio, color=factor(Gear)))+
+  geom_point()+
+  geom_line(data= inv, aes(y=Ratio_median, 
+                             x=seq(0, 60, length.out=length(Ratio_median))))+
+  facet_wrap(~SpeciesCorr)
+
+```
+
+Yes, the spear fisher do not observe the same changes as longline and handline fisher. 
+
+Let us check if all fisher fish the three groups often:
+
+```{r fished often, echo=F}
+
+inv
+
+```
+
+Only one entry comes from a fisher that does not fish squids often. But this one also reports a strong decline. So no need to thin anything out. 
+
+
+### Carnivore fish
+ 
+The species displayed below are the major contributors to the carnviorous fish functional group in Ecopath.
+ 
+```{r carnivore2, echo=F, warning=F}
+
+# Let us add the fishing years to the data set and plot the ratios over fishing
+# years
+carniNam <- c("Lethrinus_harak","Lethrinus_variegatus", "Lethrinus_mahsena",
+              "Serranidae", 
+              # "Plectorhinchus_gibbosus", "Rhinobatidae", 
+              "Mullidae", "Anguilliformes", "Cheilinus_trilobatus")
+carni <- subset(spCExpFinExp, spCExpFinExp$Species %in% carniNam)
+
+# medSp <- unique(keySp$Ratio_median) 
+
+carni <- as.data.frame(carni)
+
+ggplot(carni)+
+  geom_point(aes(x=Years_fishing, y=Ratio, color=factor(Gear)))+
+  geom_line(aes(y=Ratio_median, 
+                x=seq(0, 60, length.out=length(Ratio_median))))+
+  facet_wrap(~Species)
+#
+table(carni$SpeciesCorr)
+
+```
+
+Again the emperor species Lethrinus variegatus, Lethrinus mahsena and also Mullidae have a large range. 
+ 
+
+### Herbivore fish  
+ 
+```{r herbivore2, echo=F, warning=F}
+herbNam <- c("Acanthurus_spp", "Hipposcarus_harid", "Calotomus_carolinus")
+herb <- subset(spCExpFinExp, spCExpFinExp$Species %in% herbNam)
+
+# medSp <- unique(keySp$Ratio_median) 
+
+herb <- as.data.frame(herb)
+
+ggplot(herb, aes(x=Years_fishing, y=Ratio))+
+  geom_point()+
+  geom_line(aes(y=Ratio_median, 
+                x=seq(0, 60, length.out=length(Ratio_median))))+
+   geom_text(aes(label=Years_fishing), nudge_y = 0.1)+
+   # geom_text(aes(label=Gear))+
+  facet_wrap(~Species)
+
+
+```
+
+ 
+
+# 5.) Calculating weighted median for carnivorous fish and herbivorous fish
+## Only ten most experienced fisher 
+We first need to subset the data frame by those species that we have enough data for and need to calculate their contribution.
+This is the carnivorous fish group:
+ 
+```{r subset for carnis, echo=F}
+
+# we first rename the species to match the spelling of the main data frame
+
+carniProp$Latin[carniProp$Latin=="Lethrinus harak"] <- "Lethrinus_harak"
+carniProp$Latin[carniProp$Latin=="Lethrinus variegatus"] <- "Lethrinus_variegatus"
+carniProp$Latin[carniProp$Latin=="Lethrinus mahsena"] <- "Lethrinus_mahsena"
+carniProp$Latin[carniProp$Latin=="Cheilinus trilobatus"] <- "Cheilinus_trilobatus"
+
+# we first subset the data frame by those 
+
+carniPropSub <- subset(carniProp, carniProp$Latin %in% carniNam)
+
+
+carniPropSub$Group_contribution_new <- 1
+carniPropSub$Group_contribution_new <- carniPropSub$Total/sum(carniPropSub$Total)
+
+carniPropSub[c(2,18)]
+
+```
+
+And this is the herbivorous fish group
+
+```{r subset for herbi, echo=F}
+
+# we first rename the species to match the spelling of the main data frame
+unique(herb$SpeciesCorr)
+unique(herbiProp$Latin)
+herbiProp$Latin[herbiProp$Latin=="Acanthurus spp.&Ctenochaetus spp."] <- "Acanthurus_spp"
+herbiProp$Latin[herbiProp$Latin=="Hipposcarus harid"] <- "Hipposcarus_harid"
+herbiProp$Latin[herbiProp$Latin=="Calotomus carolinus"] <- "Calotomus_carolinus"
+
+# we first subset the data frame by those 
+
+herbiPropSub <- subset(herbiProp, herbiProp$Latin %in% herbNam)
+
+
+herbiPropSub$Group_contribution_new <- 1
+herbiPropSub$Group_contribution_new <- herbiPropSub$Total/sum(herbiPropSub$Total)
+
+herbiPropSub[c(2,18)]
+
+```
+
+And we calculate the weighted median
+
+For the carnivorous group: 
+```{r weighted median carni, echo=F}
+
+# now we add the contribution to the main data frame
+
+carni$contribution <- carniPropSub$Group_contribution[match(carni$SpeciesCorr, carniPropSub$Latin)]
+names(carni)
+colInt <- c("SpeciesCorr", "Ratio_median", "contribution")
+uni <- unique(carni[,colInt])
+
+weightedMedian <- weighted.median(uni$Ratio_median, uni$contribution)
+
+weightedMedian
+
+carnivorous_fish <- data.frame(SpeciesCorr="Carnivorous_fish", Ratio_median=weightedMedian, Q25Ratio=quantile(uni$Ratio_median)[2], Q75Ratio=quantile(uni$Ratio_median)[4])
+
+
+
+```
+
+And we plot the distribution of the median ratios and the final weighted median
+ 
+```{r plot the variability, echo=F}
+
+ggplot(carni, aes(x=Years_fishing, y=Ratio_median, color=SpeciesCorr))+
+  geom_point(size=2.5, shape=16, position=position_dodge(width=0.6), show.legend = F) +
+  geom_line(aes(y=weightedMedian, 
+                x=seq(0, 60, length.out=length(Ratio_median))), show.legend = F)+
+   annotate(geom="text", x = 1, y=0.6, label="contr=0.04")+
+  annotate(geom="text", x = 1, y=0.52, label="contr=0.08")+
+  annotate(geom="text", x = 1, y=0.5, label="contr=0.1")+
+  annotate(geom="text", x = 1, y=0.4, label="contr=0.08")+
+  annotate(geom="text", x = 1, y=0.33, label="contr=0.169")+
+  annotate(geom="text", x = 1, y=0.27, label="contr=0.143")
+
+```
+
+And the herbivorous group
+
+```{r weighted median herbi, echo=F}
+
+# now we add the contribution to the main data frame
+
+herb$contribution <- herbiPropSub$Group_contribution[match(herb$SpeciesCorr, herbiPropSub$Latin)]
+
+uniherbi <- unique(herb[,colInt])
+
+weightedMedianHerbi <- weighted.median(uniherbi$Ratio_median, uniherbi$contribution)
+
+weightedMedianHerbi
+
+herbivorous_fish <- data.frame(SpeciesCorr="Herbivorous_fish", Ratio_median=weightedMedianHerbi, Q25Ratio=quantile(uniherbi$Ratio_median)[2], Q75Ratio=quantile(uniherbi$Ratio_median)[4])
+
+
+```
+
+And we plot the distribution
+
+```{r plot the variability herb, echo=F}
+
+unique(herb[15:17])
+
+ggplot(herb, aes(x=Years_fishing, y=Ratio_median, color=SpeciesCorr))+
+  geom_point(size=2.5, shape=16, position=position_dodge(width=0.6), show.legend = F) +
+  geom_line(aes(y=weightedMedian, 
+                x=seq(0, 60, length.out=length(Ratio_median))), show.legend = F)+
+   annotate(geom="text", x = 1, y=0.34, label="contr=0.47")+
+  annotate(geom="text", x = 1, y=0.46, label="contr=0.26")
+
+```
+
+
+## All fisher above 15 years experience
+We first need to subset the data frame by those species that we have enough data for and need to calculate their contribution.
+This is the carnivorous fish group:
+  
+Let us first check what is the current minimum experience level. 
+ 
+```{r limit experience, echo=F}
+
+table(spCExpFinAll$Years_fishing)
+
+```
+
+Let us remove all fisher that have less than 15 years of fishing experience (Though this step is not really needed as I already removed them in a previous step:
+
+```{r only 15 years, echo=F}
+yrexp=15
+herbiAllExp <- subset(herbiAll, Years_fishing>=yrexp)
+carniAllExp <- subset(carniAll, Years_fishing>=yrexp)
+invAllExp <- subset(invAll, Years_fishing>=yrexp)
+keySpAllExp <- subset(keySpAll, Years_fishing>=yrexp)
+
+
+```
+
+
+```{r subset for carnis2, echo=F}
+
+# we first rename the species to match the spelling of the main data frame
+
+carniProp$Latin[carniProp$Latin=="Lethrinus harak"] <- "Lethrinus_harak"
+carniProp$Latin[carniProp$Latin=="Lethrinus variegatus"] <- "Lethrinus_variegatus"
+carniProp$Latin[carniProp$Latin=="Lethrinus mahsena"] <- "Lethrinus_mahsena"
+carniProp$Latin[carniProp$Latin=="Cheilinus trilobatus"] <- "Cheilinus_trilobatus"
+
+# we subset the data frame by those 
+
+carniPropSub <- subset(carniProp, carniProp$Latin %in% carniNam)
+
+
+carniPropSub$Group_contribution_new <- 1
+carniPropSub$Group_contribution_new <- carniPropSub$Total/sum(carniPropSub$Total)
+
+
+```
+
+
+```{r subset for herbi2, echo=F}
+
+# we first rename the species to match the spelling of the main data frame
+unique(herb$SpeciesCorr)
+unique(herbiProp$Latin)
+herbiProp$Latin[herbiProp$Latin=="Acanthurus spp.&Ctenochaetus spp."] <- "Acanthurus_spp"
+herbiProp$Latin[herbiProp$Latin=="Hipposcarus harid"] <- "Hipposcarus_harid"
+herbiProp$Latin[herbiProp$Latin=="Calotomus carolinus"] <- "Calotomus_carolinus"
+
+# we subset the data frame by those 
+
+herbiPropSub <- subset(herbiProp, herbiProp$Latin %in% herbNam)
+
+
+herbiPropSub$Group_contribution_new <- 1
+herbiPropSub$Group_contribution_new <- herbiPropSub$Total/sum(herbiPropSub$Total)
+
+
+```
+
+
+And we calculate the weighted median and the 25% and 75% quantiles using all median ratios (no weighting in this step) 
+
+For the carnivorous group:
+
+```{r weighted median carni2, echo=F}
+
+# now we add the contribution to the main data frame
+
+carniAllExp$contribution <- carniPropSub$Group_contribution[match(carniAllExp$SpeciesCorr, carniPropSub$Latin)]
+names(carniAllExp)
+colInt <- c("SpeciesCorr", "Ratio_median", "contribution")
+
+uniAll <- unique(carniAllExp[,colInt])
+
+weightedMedianAll <- weighted.median(uniAll$Ratio_median, uniAll$contribution)
+
+weightedMedianAll
+
+carnivorous_fishAll <- data.frame(SpeciesCorr="Carnivorous_fish", Ratio_median=weightedMedianAll, Q25Ratio=quantile(uniAll$Ratio_median, type = 1)[2], Q75Ratio=quantile(uniAll$Ratio_median, type=1)[4])
+
+
+
+```
+
+
+And the herbivorous group
+
+```{r weighted median herbi2, echo=F}
+
+# now we add the contribution to the main data frame
+
+herbiAllExp$contribution <- herbiPropSub$Group_contribution[match(herbiAllExp$SpeciesCorr, herbiPropSub$Latin)]
+
+uniherbiAll <- unique(herbiAllExp[, colInt])
+
+weightedMedianHerbiAll <- weighted.median(uniherbiAll$Ratio_median, uniherbiAll$contribution)
+
+weightedMedianHerbiAll
+
+herbivorous_fishAll <- data.frame(SpeciesCorr="Herbivorous_fish", Ratio_median=weightedMedianHerbiAll, Q25Ratio=quantile(uniherbiAll$Ratio_median, type=1)[2], Q75Ratio=quantile(uniherbiAll$Ratio_median, type=1)[4])
+
+
+```
+
+
+
+# 6.) We save the final data set
+## Only the first ten most experienced fisher 
+ 
+And we create a simple df with only the EwE group, the min, max, and the final median ratio:
+
+```{r final ratios, echo=F}
+quantile(keySp$Ratio)[4]
+
+# for the key species
+keySpFin <- keySp %>% 
+  group_by(SpeciesCorr) %>% 
+  mutate(Q25Ratio=quantile(Ratio)[2]) %>% 
+  mutate(Q75Ratio=quantile(Ratio)[4])
+colInt2 <- c("SpeciesCorr", "Ratio_median", "Q25Ratio", "Q75Ratio")
+keySpFin2 <- unique(keySpFin[, colInt2])
+
+# and for the invertebrate group
+
+inv2 <- inv[inv$SpeciesCorr!="Snails", ] 
+
+invFin <- inv2 %>% 
+  group_by(SpeciesCorr) %>% 
+  mutate(Q25Ratio=quantile(Ratio)[2]) %>% 
+  mutate(Q75Ratio=quantile(Ratio)[4])
+
+invFin2 <- unique(invFin[, colInt2])
+
+
+
+df <- rbind(keySpFin2, invFin2, carnivorous_fish, herbivorous_fish)
+
+# write.table(df,"Results/Q25, Q75, and median change per EwE group for ten most experienced fisher.csv", sep=";", row.names = F)
+
+table(keySp$SpeciesCorr)
+table(keySpAllExp$SpeciesCorr)
+
+lentjan1 <- subset(keySp, SpeciesCorr=="Lethrinus_lentjan")
+lentjan2 <- subset(keySpAllExp, SpeciesCorr=="Lethrinus_lentjan")
+
+
+
+```
+
+## For all fisher
+  
+
+```{r final ratios2, echo=F}
+
+# for the key species
+names(keySpAllExp)
+colInt2 <- c("SpeciesCorr", "Ratio_median", "Q25Ratio", "Q75Ratio")
+keySpFinAll2 <- unique(keySpAllExp[,colInt2])
+
+# and for the invertebrate group
+
+invAllExp2 <- invAllExp[invAllExp$SpeciesCorr!="Snails", ] 
+
+invAllExpFin2 <- unique(invAllExp2[,colInt2])
+
+
+
+dfAll <- rbind(keySpFinAll2, invAllExpFin2, carnivorous_fishAll, herbivorous_fishAll)
+
+write.table(dfAll,"Results/Used in paper/Q25, Q75, and median change per EwE group_all fisher with 15 years experience_update.csv", sep=";", row.names = F)
+
+```
+
+When comparing the ratios of the data set with all fisher with an experience above 15 and only the 10 most experienced fisher, we find that the median ratio is the same for all species but Siganus sutor. When using only the 10 most experienced fisher the decline is higher for Siganus sutor. The main issue is that we decide to have a maximum of 10 but for most species we have less than 10 so using only the most experienced does not change much.
+

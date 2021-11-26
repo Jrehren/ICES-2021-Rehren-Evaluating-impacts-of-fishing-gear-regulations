@@ -1,0 +1,82 @@
+;;;;A1.;A2.;;A3.;A4.;;A4.;B1.;B1.;B2.;B3.;B3.;B3.;B5.;B6.;B6.;C1.;C1.;D1.
+Id;Date_interview;Interviewer_name;Number_participant;Fishing_village;Sex;Age;Age_class;Start_fishing_month;Start_fishing_year;Years_fishing;Main_gear;Second_gear;Equipment_ownership;Crew;Crew_role;Number_fisher;Years_fishing_Chwaka;Fishing_yearround;Fishing_break;Individual_catch;Fisher_number;Tobe_informed
+OH0213U1;44240;Omar Haji Omar;1;Uroa;M;65;60.5;none ;1971;50;Handline;Spear;Gear;yes;captain;8;50;yes;none;yes;8;yes
+OH0213U2;44240;Omar Haji Omar;2;Uroa;M;51;50.5;none ;2001;20;Handline;FootFisher;Cooperative;yes;fishing and taking off the water;5;20;yes;friday;no;5;yes
+OH0213U3;44240;Omar Haji Omar;3;Uroa;M;78;80.5;none ;1971;50;Floatnet;Dragnet+Handline;Cooperative;yes;net repairing, fishing;12;50;yes;none;no;12;yes
+OH0213U4;44240;Omar Haji Omar;4;Uroa;M;24;21.5;none ;2004;17;Spear;Spear;Gear;yes;fishing;7;17;yes;none;yes;7;yes
+OH0213U5;44240;Omar Haji Omar;5;Uroa;M;70;70.5;none ;1976;45;Spear;Handline;Gear;yes;chief advisor;8;45;yes;none;yes;8;yes
+OH0214C6;44241;Omar Haji Omar;6;Chwaka;M;20;21.5;none ;2014;7;Dragnet;Handline;Boat;yes;assistant captain;8;7;yes;friday;no;8;yes
+OH0214C7;44241;Omar Haji Omar;7;Chwaka;M;31;30.5;none ;2001;20;Longline;none;Gear;no;none;1;20;yes;friday;yes;1;yes
+OH0214C8;44241;Omar Haji Omar;8;Chwaka;M;35;30.5;none ;2000;21;Dragnet;Trap+Handline;Gear;yes;assistant captain;14;21;yes;none;no;14;yes
+OH0214C9;44241;Omar Haji Omar;9;Chwaka;M;47;50.5;none ;1995;26;Trap;none;Gear;no;none;1;26;yes;none;yes;1;yes
+OH0214C10;44241;Omar Haji Omar;10;Chwaka;M;31;30.5;none ;2014;7;Handline;Trap;Gear;no;none;1;7;yes;friday;yes;1;yes
+OH0220M11;43881;Omar Haji Omar;11;Marumbi;M;48;50.5;none ;2011;10;Floatnet;Handline;Cooperative;yes;assistant captain;8;10;yes;friday;no;3;yes
+OH0220M12;43881;Omar Haji Omar;12;Marumbi;M;48;50.5;none ;1991;30;Trap;Gillnet;Gear;yes;captain;4;30;yes;friday, storms;no;4;yes
+OH0220M13;43881;Omar Haji Omar;13;Marumbi;M;26;30.5;none ;2011;10;Trap;Floatnet;Boat;yes;captain;12;10;yes;none;no;2;yes
+OH0220M14;43881;Omar Haji Omar;14;Marumbi;M;29;30.5;none ;2001;20;Handline;Trap;Gear;no;captain;7;20;yes;none;yes;1;yes
+OH0220M15;43881;Omar Haji Omar;15;Marumbi;M;55;50.5;none ;1991;30;Spear;none;Gear;yes;captain;8;30;yes;none;yes;4;yes
+OH0221P16;43882;Omar Haji Omar;16;Pongwe;M;60;60.5;none ;1976;45;Spear;FootFisher;Gear;no;none;8;45;yes;storms;yes;1;yes
+OH0221P17;43882;Omar Haji Omar;17;Pongwe;M;40;40.5;none ;1993;28;Dragnet;Gillnet;Gear;yes;captain;8;28;yes;friday;no;12;yes
+OH0221P18;43882;Omar Haji Omar;18;Pongwe;M;31;30.5;none ;2005;16;Dragnet;none;Boat;yes;captain;12;16;yes;none;no;8;yes
+OH0221P19;43882;Omar Haji Omar;19;Pongwe;M;65;60.5;none ;1971;50;Handline;none;Gear;yes;captain;8;50;yes;none;no;3;yes
+OH0221P20;43882;Omar Haji Omar;20;Pongwe;M;62;60.5;none ;1984;37;Handline;Trap;Gear;yes;captain;NONE;37;yes;none;no;2;yes
+NS0213U1;44240;Nuru Said Salum;1;Uroa;M;;21.5;none ;2014;7;Gillnet;none;Boat;yes;fishing;8;7;yes;none;no;8;yes
+NS0213U2;44240;Nuru Said Salum;2;Uroa;M;;60.5;none ;1970;51;Dragnet;Gillnet;Cooperative;yes;fishing;12;50;yes;none;no;12;yes
+NS0213U3;44240;Nuru Said Salum;3;Uroa;M;;30.5;none ;2006;15;Handline;Longline;Gear;yes;fishing;8;15;yes;none;no;8;yes
+NS0213U4;44240;Nuru Said Salum;4;Uroa;M;;21.5;none ;2015;6;Handline;Spear;Gear;no;fishing;1;6;yes;friday;yes;1;yes
+NS0213U5;44240;Nuru Said Salum;5;Uroa;M;;21.5;none ;2015;6;Handline;none;Boat;yes;fishing;4;6;yes;none;no;4;yes
+NS0214C6;44241;Nuru Said Salum;6;Chwaka;M;;40.5;none ;2011;10;Gillnet;Dragnet;Boat;yes;fishing;3;10;yes;none;no;3;yes
+NS0214C7;44241;Nuru Said Salum;7;Chwaka;M;;21.5;none ;2011;10;Spear;Dragnet;Boat;no;fishing;1;10;yes;none;yes;1;yes
+NS0214C8;44241;Nuru Said Salum;8;Chwaka;M;;21.5;none ;2017;4;Handline;none;Gear;no;fishing;1;4;yes;none;yes;1;yes
+NS0214C9;44241;Nuru Said Salum;9;Chwaka;M;;40.5;none ;2001;20;Dragnet;none;Cooperative;yes;fishing;10;20;yes;none;no;10;yes
+NS0214C10;44241;Nuru Said Salum;10;Chwaka;M;;21.5;none ;2018;3;Spear;none;Gear;yes;fishing;6;3;yes;none;no;6;yes
+NS0220M11;44247;Nuru Said Salum;11;Marumbi;M;;30.5;none ;2009;12;Spear;none;Gear;no;fishing;1;12;yes;none;yes;1;yes
+NS0220M12;44247;Nuru Said Salum;12;Marumbi;M;;50.5;none ;1996;25;Handline;none;Gear;no;fishing;1;25;yes;none;yes;1;yes
+NS0220M13;44247;Nuru Said Salum;13;Marumbi;M;;30.5;none ;2011;10;Gillnet;Trap;NA;yes;fishing;2;10;yes;none;no;2;yes
+NS0220M14;44247;Nuru Said Salum;14;Marumbi;M;;40.5;none ;2001;20;Trap;Handline, Gillnet;Gear;yes;fishing;2;10;yes;none;no;2;yes
+NS0220M15;44247;Nuru Said Salum;15;Marumbi;M;;30.5;none ;2001;20;Trap;Gillnet;Boat;yes;captain;3;10;yes;none;no;3;yes
+NS0221P16;44248;Nuru Said Salum;16;Pongwe;M;;40.5;none ;1991;30;Spear;Handline;Gear;no;fishing;1;30;yes;none;yes;1;yes
+NS0221P17;44248;Nuru Said Salum;17;Pongwe;M;;60.5;none ;1972;49;Handline;Trap, Gillnet;Gear;yes;fishing;4;49;yes;none;no;4;yes
+NS0221P18;44248;Nuru Said Salum;18;Pongwe;M;;50.5;none ;1991;30;Longline;Handline;Gear;yes;fishing;4;25;yes;none;no;4;yes
+NS0221P19;44248;Nuru Said Salum;19;Pongwe;M;;50.5;none ;1991;30;Handline;Trap;Gear;no;fishing;1;30;yes;none;yes;1;yes
+NS0221P20;44248;Nuru Said Salum;20;Pongwe;M;;70.5;none ;1971;50;Handline;none;Gear;no;fishing;1;50;yes;none;yes;1;yes
+HK0213U1;44240;Hamadi Khatib;1;Uroa;M;;50.5;none;1996;25;Longline;Handline;Gear;yes;dissemination of catch;2;10;yes;none;NA;2;yes
+HK0213U2;44240;Hamadi Khatib;2;Uroa;M;;30.5;none;2001;20;Handline;none;Equipment;yes;dissemination of catch;4;15;yes;none;NA;4;yes
+HK0213U3;44240;Hamadi Khatib;3;Uroa;M;;30.5;none;1986;35;Gillnet/Handline;none;Equipment;no;all activities;1;20;yes;none;N/A;1;yes
+HK0213U4;44240;Hamadi Khatib;4;Uroa;M;;40.5;8;2004;17;Gillnet;none;Cooperative;yes;assistant captain;7;15;yes;All Friday and some windy days (South east monsoon);N/A;7;yes
+HK0213U5;44240;Hamadi Khatib;5;Uroa;M;;20.5;4;2010;11;Spear;none;Gear;yes;individual task;7;11;yes;20 days out of 30 days in a months;4 to 6 kgs per days;7;yes
+HK0214C6;44241;Hamadi Khatib;6;Chwaka;M;;20.5;7;2010;11;Spear;none;Equipment;yes;captain;4;11;yes;8 days  out of 30 days has to break for  other task.;6 to 9 kgs of catch per day;4;yes
+HK0214C7;44241;Hamadi Khatib;7;Chwaka;M;;30.5;1;2006;15;Handline;Trap;Equipment;yes;captain;3;15;yes;Friday and strong wind in South east monsoon;5  kgs per days;3;yes
+HK0214C8;44241;Hamadi Khatib;8;Chwaka;M;;50.5;9;1991;30;Trap;Dragnet;Gear;yes;assistant captain;2;30;yes;Only Fridays with expection furnerals;6 kgs per day;2;yes
+HK0214C9;44241;Hamadi Khatib;9;Chwaka;M;;30.5;8;2006;15;Gillnet;none;none;yes;crew;15;15;yes;none;N/A;15;yes
+HK0214C10;44241;Hamadi Khatib;10;Chwaka;M;;30.5;5;1998;23;Trap;none;Equipment;no;captain;1;23;yes;friday;5 kgs;1;yes
+HK0220M11;44247;Hamadi Khatib;11;Marumbi;M;;30.5;7;2001;20;Floatnet;Handline;Gear;yes;assistant captain;3;20;yes;none;N/A;3;yes
+HK0220M12;44247;Hamadi Khatib;12;Marumbi;M;;30.5;11;2006;15;Gillnet;Trap;Equipment;yes;captain;3;15;yes;none;N/A;3;yes
+HK0220M13;44247;Hamadi Khatib;13;Marumbi;M;;30.5;2;2006;15;Gillnet;Handline;Equipment;yes;assistant captain;3;15;yes;friday;N/A;3;yes
+HK0220M14;44247;Hamadi Khatib;14;Marumbi;M;;30.5;3;2006;15;Dragnet;Handline;Gear;yes;dissemination of catch;3;15;yes;saturday;N/A;3;yes
+HK0220M15;44247;Hamadi Khatib;15;Marumbi;M;;50.5;4;1981;40;Trap;none;Equipment;yes;captain;2;40;yes;sunday;N/A;2;yes
+HK0221P16;44248;Hamadi Khatib;16;Pongwe;M;;50.5;5;1991;30;Trap;Handline;Equipment;yes;captain;3;30;yes;monday;N/A;3;yes
+HK0221P17;44248;Hamadi Khatib;17;Pongwe;M;;50.5;8;1981;40;Handline;Trap;Equipment;yes;captain;3;40;yes;tuesday;N/A;3;yes
+HK0221P18;44248;Hamadi Khatib;18;Pongwe;M;;50.5;11;1986;35;Handline;none;Equipment;no;captain;1;35;yes;wednesday;27 pcs of fishs per day;1;yes
+HK0221P19;44248;Hamadi Khatib;19;Pongwe;M;;50.5;12;1991;30;Handline;Trap;Equipment;no;captain;1;30;yes;thursday;30 pcs of fish per day;1;yes
+HK0221P20;44248;Hamadi Khatib;20;Pongwe;M;;50.5;8;1996;25;Spear;Dragnet;Gear;yes;assistant captain;7;25;yes;friday;N/A;7;yes
+NJ0213U1;44240;Narriman Jiddawi;1;Uroa;M;35;30.5;none;2009;12;Spear;Handline;Gear;no;fishing;1;12;yes;;yes;1;yes
+NJ0213U2;44240;Narriman Jiddawi;2;Uroa;M;80;80.5;none;1961;60;Trap;Spear;Gear;no;fishing;1;60;yes;friday;yes;1;yes
+NJ0213U3;44240;Narriman Jiddawi;3;Uroa;M;35;30.5;none;2006;15;Handline;none;Gear;no;fishing;1;15;yes;;no;1;yes
+NJ0213U4;44240;Narriman Jiddawi;4;Uroa;F;25;21.5;none;2011;10;FootFisher;none;Gear;no;collection;1;10;yes;friday;yes;1;yes
+NJ0213U5;44240;Narriman Jiddawi;5;Uroa;M;50;50.5;none;1986;35;Spear;Handline;Gear;no;fishing;1;35;yes;friday;yes;1;yes
+NJ0214C6;44241;Narriman Jiddawi;6;Chwaka;M;45;40.5;none;2006;15;FootFisher;none;Gear;no;collection;1;15;yes;friday;yes;1;yes
+NJ0214C7;44241;Narriman Jiddawi;7;Chwaka;M;45;40.5;none;2016;5;FootFisher;none;Gear;no;collection;1;5;yes;friday;yes;1;yes
+NJ0214C8;44241;Narriman Jiddawi;8;Chwaka;M;45;40.5;none;2006;15;Spear;none;Gear;no;collection;1;15;yes;friday;yes;1;yes
+NJ0214C9;44241;Narriman Jiddawi;9;Chwaka;M;45;40.5;none;2001;20;Longline;none;Gear;yes;captain;3;20;yes;friday;no;3;yes
+NJ0214C10;44241;Narriman Jiddawi;10;Chwaka;M;35;30.5;none;2006;15;Gillnet;none;none;yes;fishing;3;15;yes;friday;no;3;yes
+NJ0220M11;44247;Narriman Jiddawi;11;Marumbi;M;25;21.5;none;2015;6;Longline;Floatnet;Equipment;yes;fishing;3;6;yes;friday;no;3;yes
+NJ0220M12;44247;Narriman Jiddawi;12;Marumbi;M;45;40.5;none;1991;30;Longline;Floatnet+Trap;Equipment;yes;fishing;3;30;yes;friday;no;3;yes
+NJ0220M13;44247;Narriman Jiddawi;13;Marumbi;M;35;30.5;none;2010;11;Trap;Floatnet;Equipment;yes;fishing;2;11;yes;friday;no;2;yes
+NJ0220M14;44247;Narriman Jiddawi;14;Marumbi;M;25;21.5;none;2011;10;Floatnet;Trap;Equipment;yes;fishing;2;10;yes;friday;no;2;yes
+NJ0220M15;44247;Narriman Jiddawi;15;Marumbi;F;35;30.5;none;2011;10;FootFisher;none;Equipment;no;fishing;1;10;yes;friday;no;1;yes
+NJ0221P16;44248;Narriman Jiddawi;16;Pongwe;M;45;40.5;none;1996;25;Trap;none;Equipment;yes;fishing;2;25;yes;friday;no;2;yes
+NJ0221P17;44248;Narriman Jiddawi;17;Pongwe;M;80;80.5;none;1971;50;Trap;none;Equipment;no;fishing;1;50;yes;saturday;no;1;yes
+NJ0221P18;44248;Narriman Jiddawi;18;Pongwe;M;45;40.5;none;1991;30;Handline;none;Equipment;no;fishing;1;30;yes;sunday;no;1;yes
+NJ0221P19;44248;Narriman Jiddawi;19;Pongwe;M;45;40.5;none;1991;30;Spear;none;Equipment;no;fishing;1;30;yes;monday;no;1;yes
+NJ0221P20;44248;Narriman Jiddawi;20;Pongwe;M;50;50.5;none;1991;30;Fence;Handline;Equipment;no;fishing;1;30;yes;tuesday;no;1;yes
